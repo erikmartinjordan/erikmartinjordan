@@ -1,5 +1,5 @@
 # Erik Martín Jordán
 
 <!-- contributions:start -->
-**2,523** contributions in the last year
+**6,743** total contributions
 <!-- contributions:end -->

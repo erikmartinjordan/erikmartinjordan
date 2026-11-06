@@ -24,10 +24,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Update README
+      - name: Update README and bio
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_LOGIN: ${{ github.repository_owner }}
+          PROFILE_TOKEN: ${{ secrets.PROFILE_TOKEN }}
         run: node scripts/update-contributions.mjs
 
       - name: Commit changes

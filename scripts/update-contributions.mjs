@@ -30,10 +30,20 @@ async function gql(query, variables) {
   return json.data;
 }
 
-const QUERY = `
+const YEARS_QUERY = `
   query ($login: String!) {
     user(login: $login) {
       contributionsCollection {
+        contributionYears
+      }
+    }
+  }
+`;
+
+const YEAR_QUERY = `
+  query ($login: String!, $from: DateTime!, $to: DateTime!) {
+    user(login: $login) {
+      contributionsCollection(from: $from, to: $to) {
         contributionCalendar {
           totalContributions
         }
@@ -42,15 +52,25 @@ const QUERY = `
   }
 `;
 
-const { user } = await gql(QUERY, { login });
-const total = user.contributionsCollection.contributionCalendar.totalContributions;
+const { user } = await gql(YEARS_QUERY, { login });
+const years = user.contributionsCollection.contributionYears ?? [];
+
+let total = 0;
+for (const year of years) {
+  const data = await gql(YEAR_QUERY, {
+    login,
+    from: `${year}-01-01T00:00:00Z`,
+    to: `${year}-12-31T23:59:59Z`,
+  });
+  total += data.user.contributionsCollection.contributionCalendar.totalContributions;
+}
 
 const formatted = total.toLocaleString("en-US");
 const readmePath = fileURLToPath(new URL("../README.md", import.meta.url));
 
 const START = "<!-- contributions:start -->";
 const END = "<!-- contributions:end -->";
-const block = `${START}\n**${formatted}** contributions in the last year\n${END}`;
+const block = `${START}\n**${formatted}** total contributions\n${END}`;
 
 const readme = await readFile(readmePath, "utf8");
 const pattern = new RegExp(`${START}[\\s\\S]*?${END}`);
@@ -61,4 +81,35 @@ if (!pattern.test(readme)) {
 }
 
 await writeFile(readmePath, readme.replace(pattern, block));
-console.log(`Contributions in the last year: ${formatted}`);
+console.log(`Total contributions: ${formatted}`);
+
+const profileToken = process.env.PROFILE_TOKEN;
+if (profileToken) {
+  const headers = {
+    Authorization: `bearer ${profileToken}`,
+    Accept: "application/vnd.github+json",
+    "User-Agent": "update-contributions",
+  };
+
+  const res = await fetch("https://api.github.com/user", { headers });
+  if (!res.ok) {
+    throw new Error(`Failed to read profile: ${res.status} ${await res.text()}`);
+  }
+
+  const { bio } = await res.json();
+  const base = (bio ?? "").replace(/\s*·\s*[\d,]+\s+contributions$/, "").trim();
+  let next = base ? `${base} · ${formatted} contributions` : `${formatted} contributions`;
+  if (next.length > 160) next = next.slice(0, 160);
+
+  if (next !== bio) {
+    const patch = await fetch("https://api.github.com/user", {
+      method: "PATCH",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ bio: next }),
+    });
+    if (!patch.ok) {
+      throw new Error(`Failed to update bio: ${patch.status} ${await patch.text()}`);
+    }
+    console.log(`Bio updated: ${next}`);
+  }
+}
