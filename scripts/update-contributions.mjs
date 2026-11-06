@@ -69,7 +69,8 @@ for (const year of years) {
   total += data.user.contributionsCollection.contributionCalendar.totalContributions;
 }
 
-const next = `${total.toLocaleString("es-ES")} contributions`;
+const formatted = String(total).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+const next = `${formatted} total contributions`;
 
 const headers = {
   Authorization: `bearer ${profileToken}`,
