@@ -1,12 +1,16 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 const login = process.env.GH_LOGIN;
 const token = process.env.GH_TOKEN;
+const profileToken = process.env.PROFILE_TOKEN;
 
 if (!login || !token) {
   console.error("Missing GH_LOGIN or GH_TOKEN environment variables.");
+  process.exit(1);
+}
+
+if (!profileToken) {
+  console.error("Missing PROFILE_TOKEN environment variable.");
   process.exit(1);
 }
 
@@ -65,51 +69,31 @@ for (const year of years) {
   total += data.user.contributionsCollection.contributionCalendar.totalContributions;
 }
 
-const formatted = total.toLocaleString("en-US");
-const readmePath = fileURLToPath(new URL("../README.md", import.meta.url));
+const next = `${total.toLocaleString("en-US")} contributions`;
 
-const START = "<!-- contributions:start -->";
-const END = "<!-- contributions:end -->";
-const block = `${START}\n**${formatted}** total contributions\n${END}`;
+const headers = {
+  Authorization: `bearer ${profileToken}`,
+  Accept: "application/vnd.github+json",
+  "User-Agent": "update-contributions",
+};
 
-const readme = await readFile(readmePath, "utf8");
-const pattern = new RegExp(`${START}[\\s\\S]*?${END}`);
-
-if (!pattern.test(readme)) {
-  console.error("Could not find the contributions markers in README.md");
-  process.exit(1);
+const current = await fetch("https://api.github.com/user", { headers });
+if (!current.ok) {
+  throw new Error(`Failed to read profile: ${current.status} ${await current.text()}`);
 }
 
-await writeFile(readmePath, readme.replace(pattern, block));
-console.log(`Total contributions: ${formatted}`);
+const { bio } = await current.json();
 
-const profileToken = process.env.PROFILE_TOKEN;
-if (profileToken) {
-  const headers = {
-    Authorization: `bearer ${profileToken}`,
-    Accept: "application/vnd.github+json",
-    "User-Agent": "update-contributions",
-  };
-
-  const res = await fetch("https://api.github.com/user", { headers });
-  if (!res.ok) {
-    throw new Error(`Failed to read profile: ${res.status} ${await res.text()}`);
+if (bio === next) {
+  console.log(`Bio already up to date: ${next}`);
+} else {
+  const patch = await fetch("https://api.github.com/user", {
+    method: "PATCH",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ bio: next }),
+  });
+  if (!patch.ok) {
+    throw new Error(`Failed to update bio: ${patch.status} ${await patch.text()}`);
   }
-
-  const { bio } = await res.json();
-  const base = (bio ?? "").replace(/\s*·\s*[\d,]+\s+contributions$/, "").trim();
-  let next = base ? `${base} · ${formatted} contributions` : `${formatted} contributions`;
-  if (next.length > 160) next = next.slice(0, 160);
-
-  if (next !== bio) {
-    const patch = await fetch("https://api.github.com/user", {
-      method: "PATCH",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ bio: next }),
-    });
-    if (!patch.ok) {
-      throw new Error(`Failed to update bio: ${patch.status} ${await patch.text()}`);
-    }
-    console.log(`Bio updated: ${next}`);
-  }
+  console.log(`Bio updated: ${next}`);
 }
