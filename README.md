@@ -1,5 +1,5 @@
 # Erik Martín Jordán
 
-<!-- commits:start -->
-**Total commits:** 3,432
-<!-- commits:end -->
+<!-- contributions:start -->
+**2,522** contributions in the last year
+<!-- contributions:end -->

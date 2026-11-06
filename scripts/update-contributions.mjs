@@ -18,7 +18,7 @@ async function gql(query, variables) {
     headers: {
       Authorization: `bearer ${token}`,
       "Content-Type": "application/json",
-      "User-Agent": "update-commits",
+      "User-Agent": "update-contributions",
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -30,53 +30,35 @@ async function gql(query, variables) {
   return json.data;
 }
 
-const YEARS_QUERY = `
+const QUERY = `
   query ($login: String!) {
     user(login: $login) {
       contributionsCollection {
-        contributionYears
+        contributionCalendar {
+          totalContributions
+        }
       }
     }
   }
 `;
 
-const YEAR_QUERY = `
-  query ($login: String!, $from: DateTime!, $to: DateTime!) {
-    user(login: $login) {
-      contributionsCollection(from: $from, to: $to) {
-        totalCommitContributions
-      }
-    }
-  }
-`;
-
-const { user } = await gql(YEARS_QUERY, { login });
-const years = user.contributionsCollection.contributionYears ?? [];
-
-let total = 0;
-for (const year of years) {
-  const data = await gql(YEAR_QUERY, {
-    login,
-    from: `${year}-01-01T00:00:00Z`,
-    to: `${year}-12-31T23:59:59Z`,
-  });
-  total += data.user.contributionsCollection.totalCommitContributions;
-}
+const { user } = await gql(QUERY, { login });
+const total = user.contributionsCollection.contributionCalendar.totalContributions;
 
 const formatted = total.toLocaleString("en-US");
 const readmePath = fileURLToPath(new URL("../README.md", import.meta.url));
 
-const START = "<!-- commits:start -->";
-const END = "<!-- commits:end -->";
-const block = `${START}\n**Total commits:** ${formatted}\n${END}`;
+const START = "<!-- contributions:start -->";
+const END = "<!-- contributions:end -->";
+const block = `${START}\n**${formatted}** contributions in the last year\n${END}`;
 
 const readme = await readFile(readmePath, "utf8");
 const pattern = new RegExp(`${START}[\\s\\S]*?${END}`);
 
 if (!pattern.test(readme)) {
-  console.error("Could not find the commits markers in README.md");
+  console.error("Could not find the contributions markers in README.md");
   process.exit(1);
 }
 
 await writeFile(readmePath, readme.replace(pattern, block));
-console.log(`Total commits: ${formatted}`);
+console.log(`Contributions in the last year: ${formatted}`);

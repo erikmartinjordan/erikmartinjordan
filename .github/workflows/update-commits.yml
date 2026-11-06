@@ -1,4 +1,4 @@
-name: Update total commits
+name: Update contributions count
 
 on:
   schedule:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: update-commits
+  group: update-contributions
   cancel-in-progress: true
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_LOGIN: ${{ github.repository_owner }}
-        run: node scripts/update-commits.mjs
+        run: node scripts/update-contributions.mjs
 
       - name: Commit changes
         run: |
@@ -38,6 +38,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: update total commits"
+            git commit -m "chore: update contributions count"
             git push
           fi
