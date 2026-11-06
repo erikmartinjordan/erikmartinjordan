@@ -69,7 +69,7 @@ for (const year of years) {
   total += data.user.contributionsCollection.contributionCalendar.totalContributions;
 }
 
-const next = `${total.toLocaleString("en-US")} contributions`;
+const next = `${total.toLocaleString("es-ES")} contributions`;
 
 const headers = {
   Authorization: `bearer ${profileToken}`,
