@@ -16,22 +16,52 @@ if (!profileToken) {
 
 const endpoint = "https://api.github.com/graphql";
 
-async function gql(query, variables) {
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "update-contributions",
-    },
-    body: JSON.stringify({ query, variables }),
-  });
+async function gql(query, variables, attempts = 4) {
+  let lastError;
 
-  const json = await res.json();
-  if (!res.ok || json.errors) {
-    throw new Error(JSON.stringify(json.errors ?? json));
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `bearer ${token}`,
+          "Content-Type": "application/json",
+          "User-Agent": "update-contributions",
+        },
+        body: JSON.stringify({ query, variables }),
+        signal: controller.signal,
+      });
+
+      const text = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+      }
+      if (!text) {
+        throw new Error("Empty response body");
+      }
+
+      const json = JSON.parse(text);
+      if (json.errors) {
+        throw new Error(JSON.stringify(json.errors));
+      }
+      return json.data;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        const delay = Math.min(1000 * 2 ** (attempt - 1), 8000);
+        console.warn(`GraphQL request failed (attempt ${attempt}/${attempts}): ${error.message}`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    } finally {
+      clearTimeout(timer);
+    }
   }
-  return json.data;
+
+  throw lastError;
 }
 
 const YEARS_QUERY = `
